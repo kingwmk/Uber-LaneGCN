@@ -253,6 +253,12 @@ class ArgoDataset(Dataset):
         for lane_id in lane_ids:
             lane = self.am.city_lane_centerlines_dict[data['city']][lane_id]
             lane = copy.deepcopy(lane)
+            ###
+            print("lane ")
+            print(lane)
+            print("lane centerline")
+            print(lane.centerline)
+            ###
             centerline = np.matmul(data['rot'], (lane.centerline - data['orig'].reshape(-1, 2)).T).T
             x, y = centerline[:, 0], centerline[:, 1]
             if x.max() < x_min or x.min() > x_max or y.max() < y_min or y.min() > y_max:
@@ -260,6 +266,9 @@ class ArgoDataset(Dataset):
             else:
                 """Getting polygons requires original centerline"""
                 polygon = self.am.get_lane_segment_polygon(lane_id, data['city'])
+                ###
+                print(polygon)
+                ###
                 polygon = copy.deepcopy(polygon)
                 lane.centerline = centerline
                 lane.polygon = np.matmul(data['rot'], (polygon[:, :2] - data['orig'].reshape(-1, 2)).T).T
@@ -271,7 +280,9 @@ class ArgoDataset(Dataset):
             lane = lanes[lane_id]
             ctrln = lane.centerline
             num_segs = len(ctrln) - 1
-            
+            #each segment (or node) is the middle point of two centerline's point and their differece vector.
+            #ctrs: lane.centerline's two points' average (middle point)
+            #feats: lane.centerline's two points' difference (vector)
             ctrs.append(np.asarray((ctrln[:-1] + ctrln[1:]) / 2.0, np.float32))
             feats.append(np.asarray(ctrln[1:] - ctrln[:-1], np.float32))
             
@@ -292,6 +303,7 @@ class ArgoDataset(Dataset):
         for i, ctr in enumerate(ctrs):
             node_idcs.append(range(count, count + len(ctr)))
             count += len(ctr)
+        # number of total segments
         num_nodes = count
         
         pre, suc = dict(), dict()
@@ -300,7 +312,7 @@ class ArgoDataset(Dataset):
         for i, lane_id in enumerate(lane_ids):
             lane = lanes[lane_id]
             idcs = node_idcs[i]
-            
+            #pre['v'][i] --> connected with pre['u'][i]
             pre['u'] += idcs[1:]
             pre['v'] += idcs[:-1]
             if lane.predecessors is not None:
@@ -309,7 +321,7 @@ class ArgoDataset(Dataset):
                         j = lane_ids.index(nbr_id)
                         pre['u'].append(idcs[0])
                         pre['v'].append(node_idcs[j][-1])
-                    
+            #suc['u'][i] --> connected with suc['v'][i]        
             suc['u'] += idcs[:-1]
             suc['v'] += idcs[1:]
             if lane.successors is not None:
@@ -318,36 +330,40 @@ class ArgoDataset(Dataset):
                         j = lane_ids.index(nbr_id)
                         suc['u'].append(idcs[-1])
                         suc['v'].append(node_idcs[j][0])
-
+        #lane_idcs
+        #[[0, 0, 0, 0],
+        # [1, 1, 1],
+        # [2, 2, 2, 2]]
         lane_idcs = []
         for i, idcs in enumerate(node_idcs):
             lane_idcs.append(i * np.ones(len(idcs), np.int64))
         lane_idcs = np.concatenate(lane_idcs, 0)
-
+        
+        #lane adjoin pairs(lane neighbors)[[0,1], [1,2],...]
         pre_pairs, suc_pairs, left_pairs, right_pairs = [], [], [], []
         for i, lane_id in enumerate(lane_ids):
             lane = lanes[lane_id]
-
+            #predecessors may have more than one
             nbr_ids = lane.predecessors
             if nbr_ids is not None:
                 for nbr_id in nbr_ids:
                     if nbr_id in lane_ids:
                         j = lane_ids.index(nbr_id)
                         pre_pairs.append([i, j])
-
+            #successors may have more than one
             nbr_ids = lane.successors
             if nbr_ids is not None:
                 for nbr_id in nbr_ids:
                     if nbr_id in lane_ids:
                         j = lane_ids.index(nbr_id)
                         suc_pairs.append([i, j])
-
+            #left
             nbr_id = lane.l_neighbor_id
             if nbr_id is not None:
                 if nbr_id in lane_ids:
                     j = lane_ids.index(nbr_id)
                     left_pairs.append([i, j])
-
+            #right
             nbr_id = lane.r_neighbor_id
             if nbr_id is not None:
                 if nbr_id in lane_ids:
@@ -359,9 +375,13 @@ class ArgoDataset(Dataset):
         right_pairs = np.asarray(right_pairs, np.int64)
                     
         graph = dict()
+        #ctrs: coodinates of each node(segment). lane.centerline's two points' average (middle point)
         graph['ctrs'] = np.concatenate(ctrs, 0)
+        # number of total segments
         graph['num_nodes'] = num_nodes
+        #feats: vector of each node(segment). lane.centerline's two points' difference (vector)
         graph['feats'] = np.concatenate(feats, 0)
+        #whether turn control intersect
         graph['turn'] = np.concatenate(turn, 0)
         graph['control'] = np.concatenate(control, 0)
         graph['intersect'] = np.concatenate(intersect, 0)
