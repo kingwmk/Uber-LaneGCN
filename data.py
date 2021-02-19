@@ -17,12 +17,13 @@ class ArgoDataset(Dataset):
     def __init__(self, split, config, train=True):
         self.config = config
         self.train = train
-        
+        # config["preprocess"] = True indicates using preprocess, load from file
         if 'preprocess' in config and config['preprocess']:
             if train:
                 self.split = np.load(self.config['preprocess_train'], allow_pickle=True)
             else:
                 self.split = np.load(self.config['preprocess_val'], allow_pickle=True)
+        # else from raw data
         else:
             self.avl = ArgoverseForecastingLoader(split)
             self.am = ArgoverseMap()
@@ -79,8 +80,9 @@ class ArgoDataset(Dataset):
 
                 data['raster'] = raster
             return data
-
+        # preprocess, read data
         data = self.read_argo_data(idx)
+        # extract object features
         data = self.get_obj_feats(data)
         data['idx'] = idx
 
@@ -93,7 +95,7 @@ class ArgoDataset(Dataset):
 
             data['raster'] = raster
             return data
-
+        # extract lane graph 
         data['graph'] = self.get_lane_graph(data)
         return data
     
@@ -108,30 +110,42 @@ class ArgoDataset(Dataset):
 
         """TIMESTAMP,TRACK_ID,OBJECT_TYPE,X,Y,CITY_NAME"""
         df = copy.deepcopy(self.avl[idx].seq_df)
-        
+        # agt_ts: timestamps
         agt_ts = np.sort(np.unique(df['TIMESTAMP'].values))
+        # mapping: map timestamp to time step, 0,1,2...
         mapping = dict()
         for i, ts in enumerate(agt_ts):
             mapping[ts] = i
-
+        ###
+            if(i==0 or i==1 or i==3):
+            print("map timestamp to time step(0,1,2...)?"+str(i))
+        ###
+        # concatenate X and Y into trajs (n,2)
         trajs = np.concatenate((
             df.X.to_numpy().reshape(-1, 1),
             df.Y.to_numpy().reshape(-1, 1)), 1)
-        
+        ###
+        print("trajs:((n,2))?"+str(trajs.shape))
+        ###
+        # steps: timestep for each data.
         steps = [mapping[x] for x in df['TIMESTAMP'].values]
         steps = np.asarray(steps, np.int64)
-
+        # group data into objects according to their ID and object type.
         objs = df.groupby(['TRACK_ID', 'OBJECT_TYPE']).groups
+        # Set objects' ID and type as keys 
         keys = list(objs.keys())
+        # object type for each object
         obj_type = [x[1] for x in keys]
-
+        # agent object's key index
         agt_idx = obj_type.index('AGENT')
+        # idcs: agent objects' data
         idcs = objs[keys[agt_idx]]
-       
+        # agt_traj : agent's traj and time steps
         agt_traj = trajs[idcs]
         agt_step = steps[idcs]
 
         del keys[agt_idx]
+        # other objects's traj and time steps
         ctx_trajs, ctx_steps = [], []
         for key in keys:
             idcs = objs[key]
@@ -140,25 +154,30 @@ class ArgoDataset(Dataset):
 
         data = dict()
         data['city'] = city
+        #the first object is agent
         data['trajs'] = [agt_traj] + ctx_trajs
         data['steps'] = [agt_step] + ctx_steps
         return data
     
     def get_obj_feats(self, data):
+        #origin: agent objects' 20 step's coodinat 
         orig = data['trajs'][0][19].copy().astype(np.float32)
-
+        #rotate random theta to do augmentation
         if self.train and self.config['rot_aug']:
             theta = np.random.rand() * np.pi * 2.0
         else:
+            # agent objects' 19step - 20step 
             pre = data['trajs'][0][18] - orig
+            # theta: taking 20step as origin
             theta = np.pi - np.arctan2(pre[1], pre[0])
-
+        # rotate theta
         rot = np.asarray([
             [np.cos(theta), -np.sin(theta)],
             [np.sin(theta), np.cos(theta)]], np.float32)
 
         feats, ctrs, gt_preds, has_preds = [], [], [], []
         for traj, step in zip(data['trajs'], data['steps']):
+            # skip traj less than 20 timestep
             if 19 not in step:
                 continue
 
