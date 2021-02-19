@@ -160,7 +160,7 @@ class ArgoDataset(Dataset):
         return data
     
     def get_obj_feats(self, data):
-        #origin: agent objects' 20 step's coodinat 
+        #origin: agent objects' 20 step's coodinates 
         orig = data['trajs'][0][19].copy().astype(np.float32)
         #rotate random theta to do augmentation
         if self.train and self.config['rot_aug']:
@@ -180,16 +180,20 @@ class ArgoDataset(Dataset):
             # skip traj less than 20 timestep
             if 19 not in step:
                 continue
-
+            
             gt_pred = np.zeros((30, 2), np.float32)
             has_pred = np.zeros(30, np.bool)
             future_mask = np.logical_and(step >= 20, step < 50)
+            # post_step: the following steps after 19step
             post_step = step[future_mask] - 20
             post_traj = traj[future_mask]
+            # gt_pred: ground truth of future step(need predict), index from 0.
             gt_pred[post_step] = post_traj
+            # mask of need predict step(post step).(Redundant? post_step can do the same job?)
             has_pred[post_step] = 1
             
             obs_mask = step < 20
+            # observed step
             step = step[obs_mask]
             traj = traj[obs_mask]
             idcs = step.argsort()
@@ -199,18 +203,22 @@ class ArgoDataset(Dataset):
             for i in range(len(step)):
                 if step[i] == 19 - (len(step) - 1) + i:
                     break
+            # reserve 20 step traj before origin(19) step (seem unneeded?)
             step = step[i:]
             traj = traj[i:]
 
             feat = np.zeros((20, 3), np.float32)
+            # rotation
             feat[step, :2] = np.matmul(rot, (traj - orig.reshape(-1, 2)).T).T
             feat[step, 2] = 1.0
-
+            
+            #skip if the last step of observation out of prediction range
             x_min, x_max, y_min, y_max = self.config['pred_range']
             if feat[-1, 0] < x_min or feat[-1, 0] > x_max or feat[-1, 1] < y_min or feat[-1, 1] > y_max:
                 continue
-
+            #coodinates of last step of observation.
             ctrs.append(feat[-1, :2].copy())
+            # get difference of coodinates in each step, and set the first step's coodinates as (0,0)
             feat[1:, :2] -= feat[:-1, :2]
             feat[step[0], :2] = 0
             feats.append(feat)
@@ -223,7 +231,9 @@ class ArgoDataset(Dataset):
         has_preds = np.asarray(has_preds, np.bool)
 
         data['feats'] = feats
+        #each objects' 19step's coodinates
         data['ctrs'] = ctrs
+        # agent's 19step's coodinates
         data['orig'] = orig
         data['theta'] = theta
         data['rot'] = rot
