@@ -256,7 +256,7 @@ class ArgoDataset(Dataset):
             ###
             print("lane ")
             print(lane)
-            print("lane centerline")
+            print("lane centerline"+str(lane.centerline.shape))
             print(lane.centerline)
             ###
             centerline = np.matmul(data['rot'], (lane.centerline - data['orig'].reshape(-1, 2)).T).T
@@ -400,6 +400,7 @@ class ArgoDataset(Dataset):
         for key in ['pre', 'suc']:
             if 'scales' in self.config and self.config['scales']:
                 #TODO: delete here
+                #add other scale pre and suc array
                 graph[key] += dilated_nbrs2(graph[key][0], graph['num_nodes'], self.config['scales'])
             else:
                 graph[key] += dilated_nbrs(graph[key][0], graph['num_nodes'], self.config['num_scales'])
@@ -571,6 +572,7 @@ def dilated_nbrs(nbr, num_nodes, num_scales):
         mat = mat * mat
 
         nbr = dict()
+        #Convert this matrix to COOrdinate format.
         coo = mat.tocoo()
         nbr['u'] = coo.row.astype(np.int64)
         nbr['v'] = coo.col.astype(np.int64)
