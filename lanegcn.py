@@ -126,6 +126,7 @@ class Net(nn.Module):
 
     def forward(self, data: Dict) -> Dict[str, List[Tensor]]:
         # construct actor feature
+        #actor_idcs: indexes for each batch's objects
         actors, actor_idcs = actor_gather(gpu(data["feats"]))
         actor_ctrs = gpu(data["ctrs"])
         actors = self.actor_net(actors)
@@ -155,10 +156,20 @@ class Net(nn.Module):
 def actor_gather(actors: List[Tensor]) -> Tuple[Tensor, List[Tensor]]:
     batch_size = len(actors)
     num_actors = [len(x) for x in actors]
-
+    
+    ###
+    print("actors_shape_before_transpose:")
+    print(actors.shape)
+    ###
+    
+    # batch_size x 20 x N x 3?
     actors = [x.transpose(1, 2) for x in actors]
+    ###
+    print("actors_shape_after_transpose:")
+    print(actors.shape)
+    ###
     actors = torch.cat(actors, 0)
-
+    #indexes for each batch's objects
     actor_idcs = []
     count = 0
     for i in range(batch_size):
