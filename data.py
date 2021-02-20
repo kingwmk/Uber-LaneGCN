@@ -331,14 +331,17 @@ class ArgoDataset(Dataset):
                         suc['u'].append(idcs[-1])
                         suc['v'].append(node_idcs[j][0])
         #lane_idcs
-        #[[0, 0, 0, 0],
-        # [1, 1, 1],
-        # [2, 2, 2, 2]]
+        #[0, 0, 0, 0,
+        # 1, 1, 1,
+        # 2, 2, 2, 2]
         lane_idcs = []
         for i, idcs in enumerate(node_idcs):
             lane_idcs.append(i * np.ones(len(idcs), np.int64))
         lane_idcs = np.concatenate(lane_idcs, 0)
-        
+        ###
+        print("lane_idcs")
+        print(lane_idcs)
+        ###
         #lane adjoin pairs(lane neighbors)[[0,1], [1,2],...]
         pre_pairs, suc_pairs, left_pairs, right_pairs = [], [], [], []
         for i, lane_id in enumerate(lane_ids):
