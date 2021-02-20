@@ -293,6 +293,7 @@ def preprocess(graph, cross_dist, cross_angle=None):
 
     dist = graph['ctrs'].unsqueeze(1) - graph['ctrs'].unsqueeze(0)
     dist = torch.sqrt((dist ** 2).sum(2))
+    #
     hi = torch.arange(num_nodes).long().to(dist.device).view(-1, 1).repeat(1, num_nodes).view(-1)
     wi = torch.arange(num_nodes).long().to(dist.device).view(1, -1).repeat(num_nodes, 1).view(-1)
     row_idcs = torch.arange(num_nodes).long().to(dist.device)
@@ -321,6 +322,7 @@ def preprocess(graph, cross_dist, cross_angle=None):
     if len(pairs) > 0:
         mat = pairs.new().float().resize_(num_lanes, num_lanes).zero_()
         mat[pairs[:, 0], pairs[:, 1]] = 1
+        ###??
         mat = (torch.matmul(mat, pre) + torch.matmul(mat, suc) + mat) > 0.5
 
         left_dist = dist.clone()
