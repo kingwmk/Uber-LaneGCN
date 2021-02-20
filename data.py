@@ -251,6 +251,8 @@ class ArgoDataset(Dataset):
         
         lanes = dict()
         for lane_id in lane_ids:
+            #Each lane contains a centerline, i.e., a sequence of 2D BEV points,
+            #which are arranged following the lane direction 
             lane = self.am.city_lane_centerlines_dict[data['city']][lane_id]
             lane = copy.deepcopy(lane)
             ###
@@ -280,6 +282,9 @@ class ArgoDataset(Dataset):
             lane = lanes[lane_id]
             ctrln = lane.centerline
             num_segs = len(ctrln) - 1
+            #Paper: The location of a lane node is the averaged coordinates of its two end points.
+            #Paper: denote the lane nodes with V ∈ R^{N×2} , where N is the number of
+            #Paper: lane nodes and the i-th row of V is the BEV coordinates of the i-th node
             #each segment (or node) is the middle point of two centerline's point and their differece vector.
             #ctrs: lane.centerline's two points' average (middle point)
             #feats: lane.centerline's two points' difference (vector)
