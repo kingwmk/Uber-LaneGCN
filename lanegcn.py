@@ -278,6 +278,10 @@ class MapNet(nn.Module):
     """
     Map Graph feature extractor with LaneGraphCNN
     """
+# LaneGCN is a stack of 4 multi-scale LaneConv residual
+# blocks, each of which consists of a LaneConv(1,2,4,8,16,32) and a linear layer with a residual
+# connection. All layers have 128 feature channels.    
+    
     def __init__(self, config):
         super(MapNet, self).__init__()
         self.config = config
@@ -336,7 +340,8 @@ class MapNet(nn.Module):
         feat = self.input(ctrs)
         feat += self.seg(graph["feats"])
         feat = self.relu(feat)
-
+        
+        #Y = XW_0 + sum_{i∈{left,right}}(A_iXW_i) + sum_{c=1}^C(A_pre^kc*X*W_{pre,kc} + A_suc^kc*X*W_{suc,kc} +)
         """fuse map"""
         res = feat
         for i in range(len(self.fuse["ctr"])):
