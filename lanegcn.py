@@ -627,6 +627,7 @@ class PredNet(nn.Module):
         for i in range(len(actor_idcs)):
             idcs = actor_idcs[i]
             ctrs = actor_ctrs[i].view(-1, 1, 1, 2)
+            # + 19step coodinates
             reg[idcs] = reg[idcs] + ctrs
 
         dest_ctrs = reg[:, :, -1].detach()
