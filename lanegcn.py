@@ -384,6 +384,8 @@ class A2M(nn.Module):
     Actor to Map Fusion:  fuses real-time traffic information from
     actor nodes to lane nodes
     """
+    #
+    #Each of A2L, L2A and A2A has two residual blocks
     def __init__(self, config):
         super(A2M, self).__init__()
         self.config = config
@@ -652,6 +654,10 @@ class Att(nn.Module):
     Attention block to pass context nodes information to target nodes
     This is used in Actor2Map, Actor2Actor, Map2Actor and Map2Map
     """
+    #consist of a stack of the proposed attention layer and a linear layer, as well as a residual connection.
+    
+    #  att.append(Att(n_map, config["n_actor"]))
+    # n_agt: target, n_ctx: context
     def __init__(self, n_agt: int, n_ctx: int) -> None:
         super(Att, self).__init__()
         norm = "GN"
@@ -674,7 +680,8 @@ class Att(nn.Module):
         self.norm = nn.GroupNorm(gcd(ng, n_agt), n_agt)
         self.linear = Linear(n_agt, n_agt, norm=norm, ng=ng, act=False)
         self.relu = nn.ReLU(inplace=True)
-
+        
+     #feat = self.att[i](feat, graph["idcs"], graph["ctrs"], actors, actor_idcs, actor_ctrs, self.config["actor2map_dist"],)
     def forward(self, agts: Tensor, agt_idcs: List[Tensor], agt_ctrs: List[Tensor], ctx: Tensor, ctx_idcs: List[Tensor], ctx_ctrs: List[Tensor], dist_th: float) -> Tensor:
         res = agts
         if len(ctx) == 0:
@@ -689,28 +696,40 @@ class Att(nn.Module):
         hi, wi = [], []
         hi_count, wi_count = 0, 0
         for i in range(batch_size):
+            ###
+            print("agt_ctrs.shape:")
+            print(agt_ctrs.shape)
+            print("ctx_ctrs.shape:")
+            print(ctx_ctrs.shape)
+            ###
             dist = agt_ctrs[i].view(-1, 1, 2) - ctx_ctrs[i].view(1, -1, 2)
             dist = torch.sqrt((dist ** 2).sum(2))
+            ###
+            print("dist shape:")
+            print(dist.shape)
+            ###
             mask = dist <= dist_th
 
             idcs = torch.nonzero(mask, as_tuple=False)
             if len(idcs) == 0:
                 continue
-
+            # + each batchs' offset to convert index to original 
             hi.append(idcs[:, 0] + hi_count)
             wi.append(idcs[:, 1] + wi_count)
+            #offset of each batch
             hi_count += len(agt_idcs[i])
             wi_count += len(ctx_idcs[i])
         hi = torch.cat(hi, 0)
         wi = torch.cat(wi, 0)
-
+        
+        #yi = xi*W0 + sum_j(φ(concat(xi, ∆_{i,j}, xj)* W1)*W2)
         agt_ctrs = torch.cat(agt_ctrs, 0)
         ctx_ctrs = torch.cat(ctx_ctrs, 0)
         dist = agt_ctrs[hi] - ctx_ctrs[wi]
         dist = self.dist(dist)
 
         query = self.query(agts[hi])
-
+        
         ctx = ctx[wi]
         ctx = torch.cat((dist, query, ctx), 1)
         ctx = self.ctx(ctx)
