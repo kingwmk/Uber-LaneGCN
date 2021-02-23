@@ -631,6 +631,10 @@ class PredNet(nn.Module):
             reg[idcs] = reg[idcs] + ctrs
 
         dest_ctrs = reg[:, :, -1].detach()
+        
+        # For the classification branch, we apply an MLP to p^k_{m,T} − p_{m,0} to
+        # get K distance embeddings. We then concatenate each distance embedding with the
+        # actor feature, apply a residual block and a linear layer to output K confidence scores,
         feats = self.att_dest(actors, torch.cat(actor_ctrs, 0), dest_ctrs)
         cls = self.cls(feats).view(-1, self.config["num_mods"])
 
