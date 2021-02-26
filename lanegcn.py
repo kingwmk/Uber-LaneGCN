@@ -158,15 +158,15 @@ def actor_gather(actors: List[Tensor]) -> Tuple[Tensor, List[Tensor]]:
     num_actors = [len(x) for x in actors]
     
     ###
-    print("actors_shape_before_transpose:")
-    print(actors.shape)
+    #print("actors_shape_before_transpose:")
+    #print(actors.shape)
     ###
     
-    # batch_size x 20 x N x 3?
+    #batch_size x 20 x N x 3?
     actors = [x.transpose(1, 2) for x in actors]
     ###
-    print("actors_shape_after_transpose:")
-    print(actors.shape)
+    #print("actors_shape_after_transpose:")
+    #print(actors.shape)
     ###
     actors = torch.cat(actors, 0)
     #indexes for each batch's objects
@@ -702,16 +702,16 @@ class Att(nn.Module):
         hi_count, wi_count = 0, 0
         for i in range(batch_size):
             ###
-            print("agt_ctrs.shape:")
-            print(agt_ctrs.shape)
-            print("ctx_ctrs.shape:")
-            print(ctx_ctrs.shape)
+            #print("agt_ctrs.shape:")
+            #print(agt_ctrs.shape)
+            #print("ctx_ctrs.shape:")
+            #print(ctx_ctrs.shape)
             ###
             dist = agt_ctrs[i].view(-1, 1, 2) - ctx_ctrs[i].view(1, -1, 2)
             dist = torch.sqrt((dist ** 2).sum(2))
             ###
-            print("dist shape:")
-            print(dist.shape)
+            #print("dist shape:")
+            #print(dist.shape)
             ###
             mask = dist <= dist_th
 
