@@ -126,21 +126,26 @@ class Net(nn.Module):
 
     def forward(self, data: Dict) -> Dict[str, List[Tensor]]:
         # construct actor feature
-        #actor_idcs: indexes for each batch's objects
+        # actor_idcs: indexes for each batch's objects
         actors, actor_idcs = actor_gather(gpu(data["feats"]))
         actor_ctrs = gpu(data["ctrs"])
+        # actor input: Mx3x20 
         actors = self.actor_net(actors)
 
         # construct map features
         graph = graph_gather(to_long(gpu(data["graph"])))
+        # mape input: Nx4
         nodes, node_idcs, node_ctrs = self.map_net(graph)
 
-        # actor-map fusion cycle 
+        # actor-map fusion cycle
+        # actor nodes: M x 128, feature at the current step of the 1D feature map.
+        # lane nodes: N x 128
         nodes = self.a2m(nodes, graph, actors, actor_idcs, actor_ctrs)
         nodes = self.m2m(nodes, graph)
         actors = self.m2a(actors, actor_idcs, actor_ctrs, nodes, node_idcs, node_ctrs)
         actors = self.a2a(actors, actor_idcs, actor_ctrs)
 
+        # actor nodes: M x 128
         # prediction
         out = self.pred_net(actors, actor_idcs, actor_ctrs)
         rot, orig = gpu(data["rot"]), gpu(data["orig"])
