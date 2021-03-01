@@ -17,13 +17,12 @@ class ArgoDataset(Dataset):
     def __init__(self, split, config, train=True):
         self.config = config
         self.train = train
-        # config["preprocess"] = True indicates using preprocess, load from file
+        
         if 'preprocess' in config and config['preprocess']:
             if train:
                 self.split = np.load(self.config['preprocess_train'], allow_pickle=True)
             else:
                 self.split = np.load(self.config['preprocess_val'], allow_pickle=True)
-        # else from raw data
         else:
             self.avl = ArgoverseForecastingLoader(split)
             self.am = ArgoverseMap()
@@ -80,9 +79,8 @@ class ArgoDataset(Dataset):
 
                 data['raster'] = raster
             return data
-        # preprocess, read data
+
         data = self.read_argo_data(idx)
-        # extract object features
         data = self.get_obj_feats(data)
         data['idx'] = idx
 
@@ -95,7 +93,7 @@ class ArgoDataset(Dataset):
 
             data['raster'] = raster
             return data
-        # extract lane graph 
+
         data['graph'] = self.get_lane_graph(data)
         return data
     
@@ -110,37 +108,30 @@ class ArgoDataset(Dataset):
 
         """TIMESTAMP,TRACK_ID,OBJECT_TYPE,X,Y,CITY_NAME"""
         df = copy.deepcopy(self.avl[idx].seq_df)
-        # agt_ts: timestamps
+        
         agt_ts = np.sort(np.unique(df['TIMESTAMP'].values))
-        # mapping: map timestamp to time step, 0,1,2...
         mapping = dict()
         for i, ts in enumerate(agt_ts):
             mapping[ts] = i
-            
-        # concatenate X and Y into trajs (n,2)
+
         trajs = np.concatenate((
             df.X.to_numpy().reshape(-1, 1),
             df.Y.to_numpy().reshape(-1, 1)), 1)
-
-        # steps: timestep for each data.
+        
         steps = [mapping[x] for x in df['TIMESTAMP'].values]
         steps = np.asarray(steps, np.int64)
-        # group data into objects according to their ID and object type.
+
         objs = df.groupby(['TRACK_ID', 'OBJECT_TYPE']).groups
-        # Set objects' ID and type as keys 
         keys = list(objs.keys())
-        # object type for each object
         obj_type = [x[1] for x in keys]
-        # agent object's key index
+
         agt_idx = obj_type.index('AGENT')
-        # idcs: agent objects' data
         idcs = objs[keys[agt_idx]]
-        # agt_traj : agent's traj and time steps
+       
         agt_traj = trajs[idcs]
         agt_step = steps[idcs]
 
         del keys[agt_idx]
-        # other objects's traj and time steps
         ctx_trajs, ctx_steps = [], []
         for key in keys:
             idcs = objs[key]
@@ -149,46 +140,37 @@ class ArgoDataset(Dataset):
 
         data = dict()
         data['city'] = city
-        #the first object is agent
         data['trajs'] = [agt_traj] + ctx_trajs
         data['steps'] = [agt_step] + ctx_steps
         return data
     
     def get_obj_feats(self, data):
-        #origin: agent objects' 20 step's coodinates 
         orig = data['trajs'][0][19].copy().astype(np.float32)
-        #rotate random theta to do augmentation
+
         if self.train and self.config['rot_aug']:
             theta = np.random.rand() * np.pi * 2.0
         else:
-            # agent objects' 19step - 20step 
             pre = data['trajs'][0][18] - orig
-            # theta: taking 20step as origin
             theta = np.pi - np.arctan2(pre[1], pre[0])
-        # rotate theta
+
         rot = np.asarray([
             [np.cos(theta), -np.sin(theta)],
             [np.sin(theta), np.cos(theta)]], np.float32)
 
         feats, ctrs, gt_preds, has_preds = [], [], [], []
         for traj, step in zip(data['trajs'], data['steps']):
-            # skip traj less than 20 timestep
             if 19 not in step:
                 continue
-            
+
             gt_pred = np.zeros((30, 2), np.float32)
             has_pred = np.zeros(30, np.bool)
             future_mask = np.logical_and(step >= 20, step < 50)
-            # post_step: the following steps after 19step
             post_step = step[future_mask] - 20
             post_traj = traj[future_mask]
-            # gt_pred: ground truth of future step(need predict), index from 0.
             gt_pred[post_step] = post_traj
-            # mask of need predict step(post step).(Redundant? post_step can do the same job?)
             has_pred[post_step] = 1
             
             obs_mask = step < 20
-            # observed step
             step = step[obs_mask]
             traj = traj[obs_mask]
             idcs = step.argsort()
@@ -198,22 +180,18 @@ class ArgoDataset(Dataset):
             for i in range(len(step)):
                 if step[i] == 19 - (len(step) - 1) + i:
                     break
-            #  continues step traj before origin(19) step.
             step = step[i:]
             traj = traj[i:]
 
             feat = np.zeros((20, 3), np.float32)
-            # rotation
             feat[step, :2] = np.matmul(rot, (traj - orig.reshape(-1, 2)).T).T
             feat[step, 2] = 1.0
-            
-            #skip if the last step of observation out of prediction range
+
             x_min, x_max, y_min, y_max = self.config['pred_range']
             if feat[-1, 0] < x_min or feat[-1, 0] > x_max or feat[-1, 1] < y_min or feat[-1, 1] > y_max:
                 continue
-            #coodinates of last step of observation.
+
             ctrs.append(feat[-1, :2].copy())
-            # get difference of coodinates in each step, and set the first step's coodinates as (0,0)
             feat[1:, :2] -= feat[:-1, :2]
             feat[step[0], :2] = 0
             feats.append(feat)
@@ -226,9 +204,7 @@ class ArgoDataset(Dataset):
         has_preds = np.asarray(has_preds, np.bool)
 
         data['feats'] = feats
-        #each objects' 19step's coodinates
         data['ctrs'] = ctrs
-        # agent's 19step's coodinates
         data['orig'] = orig
         data['theta'] = theta
         data['rot'] = rot
@@ -246,16 +222,8 @@ class ArgoDataset(Dataset):
         
         lanes = dict()
         for lane_id in lane_ids:
-            #Each lane contains a centerline, i.e., a sequence of 2D BEV points,
-            #which are arranged following the lane direction 
             lane = self.am.city_lane_centerlines_dict[data['city']][lane_id]
             lane = copy.deepcopy(lane)
-            ###
-            print("lane ")
-            print(lane)
-            print("lane centerline"+str(lane.centerline.shape))
-            print(lane.centerline)
-            ###
             centerline = np.matmul(data['rot'], (lane.centerline - data['orig'].reshape(-1, 2)).T).T
             x, y = centerline[:, 0], centerline[:, 1]
             if x.max() < x_min or x.min() > x_max or y.max() < y_min or y.min() > y_max:
@@ -263,9 +231,6 @@ class ArgoDataset(Dataset):
             else:
                 """Getting polygons requires original centerline"""
                 polygon = self.am.get_lane_segment_polygon(lane_id, data['city'])
-                ###
-                print(polygon)
-                ###
                 polygon = copy.deepcopy(polygon)
                 lane.centerline = centerline
                 lane.polygon = np.matmul(data['rot'], (polygon[:, :2] - data['orig'].reshape(-1, 2)).T).T
@@ -277,12 +242,7 @@ class ArgoDataset(Dataset):
             lane = lanes[lane_id]
             ctrln = lane.centerline
             num_segs = len(ctrln) - 1
-            #Paper: The location of a lane node is the averaged coordinates of its two end points.
-            #Paper: denote the lane nodes with V ∈ R^{N×2} , where N is the number of
-            #Paper: lane nodes and the i-th row of V is the BEV coordinates of the i-th node
-            #each segment (or node) is the middle point of two centerline's point and their differece vector.
-            #ctrs: lane.centerline's two points' average (middle point)
-            #feats: lane.centerline's two points' difference (vector)
+            
             ctrs.append(np.asarray((ctrln[:-1] + ctrln[1:]) / 2.0, np.float32))
             feats.append(np.asarray(ctrln[1:] - ctrln[:-1], np.float32))
             
@@ -303,7 +263,6 @@ class ArgoDataset(Dataset):
         for i, ctr in enumerate(ctrs):
             node_idcs.append(range(count, count + len(ctr)))
             count += len(ctr)
-        # number of total segments
         num_nodes = count
         
         pre, suc = dict(), dict()
@@ -312,7 +271,7 @@ class ArgoDataset(Dataset):
         for i, lane_id in enumerate(lane_ids):
             lane = lanes[lane_id]
             idcs = node_idcs[i]
-            #pre['v'][i] --> connected with pre['u'][i]
+            
             pre['u'] += idcs[1:]
             pre['v'] += idcs[:-1]
             if lane.predecessors is not None:
@@ -321,7 +280,7 @@ class ArgoDataset(Dataset):
                         j = lane_ids.index(nbr_id)
                         pre['u'].append(idcs[0])
                         pre['v'].append(node_idcs[j][-1])
-            #suc['u'][i] --> connected with suc['v'][i]        
+                    
             suc['u'] += idcs[:-1]
             suc['v'] += idcs[1:]
             if lane.successors is not None:
@@ -330,43 +289,36 @@ class ArgoDataset(Dataset):
                         j = lane_ids.index(nbr_id)
                         suc['u'].append(idcs[-1])
                         suc['v'].append(node_idcs[j][0])
-        #lane_idcs
-        #[0, 0, 0, 0,
-        # 1, 1, 1,
-        # 2, 2, 2, 2]
+
         lane_idcs = []
         for i, idcs in enumerate(node_idcs):
             lane_idcs.append(i * np.ones(len(idcs), np.int64))
         lane_idcs = np.concatenate(lane_idcs, 0)
-        ###
-        print("lane_idcs")
-        print(lane_idcs)
-        ###
-        #lane adjoin pairs(lane neighbors)[[0,1], [1,2],...]
+
         pre_pairs, suc_pairs, left_pairs, right_pairs = [], [], [], []
         for i, lane_id in enumerate(lane_ids):
             lane = lanes[lane_id]
-            #predecessors may have more than one
+
             nbr_ids = lane.predecessors
             if nbr_ids is not None:
                 for nbr_id in nbr_ids:
                     if nbr_id in lane_ids:
                         j = lane_ids.index(nbr_id)
                         pre_pairs.append([i, j])
-            #successors may have more than one
+
             nbr_ids = lane.successors
             if nbr_ids is not None:
                 for nbr_id in nbr_ids:
                     if nbr_id in lane_ids:
                         j = lane_ids.index(nbr_id)
                         suc_pairs.append([i, j])
-            #left
+
             nbr_id = lane.l_neighbor_id
             if nbr_id is not None:
                 if nbr_id in lane_ids:
                     j = lane_ids.index(nbr_id)
                     left_pairs.append([i, j])
-            #right
+
             nbr_id = lane.r_neighbor_id
             if nbr_id is not None:
                 if nbr_id in lane_ids:
@@ -378,13 +330,9 @@ class ArgoDataset(Dataset):
         right_pairs = np.asarray(right_pairs, np.int64)
                     
         graph = dict()
-        #ctrs: coodinates of each node(segment). lane.centerline's two points' average (middle point)
         graph['ctrs'] = np.concatenate(ctrs, 0)
-        # number of total segments
         graph['num_nodes'] = num_nodes
-        #feats: vector of each node(segment). lane.centerline's two points' difference (vector)
         graph['feats'] = np.concatenate(feats, 0)
-        #whether turn control intersect
         graph['turn'] = np.concatenate(turn, 0)
         graph['control'] = np.concatenate(control, 0)
         graph['intersect'] = np.concatenate(intersect, 0)
@@ -403,7 +351,6 @@ class ArgoDataset(Dataset):
         for key in ['pre', 'suc']:
             if 'scales' in self.config and self.config['scales']:
                 #TODO: delete here
-                #add other scale pre and suc array
                 graph[key] += dilated_nbrs2(graph[key][0], graph['num_nodes'], self.config['scales'])
             else:
                 graph[key] += dilated_nbrs(graph[key][0], graph['num_nodes'], self.config['num_scales'])
@@ -575,7 +522,6 @@ def dilated_nbrs(nbr, num_nodes, num_scales):
         mat = mat * mat
 
         nbr = dict()
-        #Convert this matrix to COOrdinate format.
         coo = mat.tocoo()
         nbr['u'] = coo.row.astype(np.int64)
         nbr['v'] = coo.col.astype(np.int64)
