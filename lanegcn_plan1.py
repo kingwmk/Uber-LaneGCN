@@ -89,13 +89,131 @@ config["cls_ignore"] = 0.2
 
 
 class Net_P1(nn.Module):
-class M2A_P1():
-    """
-    1. more feature for each step: 3 -> n
-    2. LSTM replace 1D cnn considering temporal, for feature extraction 
-    """
+    
+    def __init__(self, config):
+        super(Net, self).__init__()
+        self.config = config
 
+        self.actor_net_P1 = ActorNet_P1(config)
+        self.map_net = MapNet(config)
 
+        self.a2m = A2M(config)
+        self.m2m = M2M(config)
+        self.m2a = M2A(config)
+        self.a2a = A2A(config)
+
+        self.pred_net = PredNet(config)
+
+    def forward(self, data: Dict) -> Dict[str, List[Tensor]]:
+        # construct map features
+        graph = graph_gather(to_long(gpu(data["graph"])))
+        nodes, node_idcs, node_ctrs = self.map_net(graph)
+        
+        # construct actor feature
+        actors, actor_idcs = actor_gather(gpu(data["feats"]))
+        actor_ctrs = gpu(data["ctrs"])
+        actors = self.actor_net_P1(actors)
+
+        # actor-map fusion cycle 
+        nodes = self.a2m(nodes, graph, actors, actor_idcs, actor_ctrs)
+        nodes = self.m2m(nodes, graph)
+        actors = self.m2a(actors, actor_idcs, actor_ctrs, nodes, node_idcs, node_ctrs)
+        actors = self.a2a(actors, actor_idcs, actor_ctrs)
+
+        # prediction
+        out = self.pred_net(actors, actor_idcs, actor_ctrs)
+        rot, orig = gpu(data["rot"]), gpu(data["orig"])
+        # transform prediction to world coordinates
+        for i in range(len(out["reg"])):
+            out["reg"][i] = torch.matmul(out["reg"][i], rot[i]) + orig[i].view(
+                1, 1, 1, -1
+            )
+        return out
+    
+class ActorNet_P1(nn.Module):
+    """
+    Actor feature extractor with Conv1D
+    """
+    def __init__(self, config):
+        super(ActorNet, self).__init__()
+        self.config = config
+        norm = "GN"
+        ng = 1
+
+        n_in = 3
+        n_out = [32, 64, 128]
+        blocks = [Res1d, Res1d, Res1d]
+        num_blocks = [2, 2, 2]
+
+        groups = []
+        for i in range(len(num_blocks)):
+            group = []
+            if i == 0:
+                group.append(blocks[i](n_in, n_out[i], norm=norm, ng=ng))
+            else:
+                group.append(blocks[i](n_in, n_out[i], stride=2, norm=norm, ng=ng))
+
+            for j in range(1, num_blocks[i]):
+                group.append(blocks[i](n_out[i], n_out[i], norm=norm, ng=ng))
+            groups.append(nn.Sequential(*group))
+            n_in = n_out[i]
+        self.groups = nn.ModuleList(groups)
+
+        n = config["n_actor"]
+        lateral = []
+        for i in range(len(n_out)):
+            lateral.append(Conv1d(n_out[i], n, norm=norm, ng=ng, act=False))
+        self.lateral = nn.ModuleList(lateral)
+
+        self.output = Res1d(n, n, norm=norm, ng=ng)
+
+    def forward(self, actors: Tensor) -> Tensor:
+        out = actors
+
+        outputs = []
+        for i in range(len(self.groups)):
+            out = self.groups[i](out)
+            outputs.append(out)
+
+        out = self.lateral[-1](outputs[-1])
+        for i in range(len(outputs) - 2, -1, -1):
+            out = F.interpolate(out, scale_factor=2, mode="linear", align_corners=False)
+            out += self.lateral[i](outputs[i])
+
+        out = self.output(out)[:, :, -1]
+        return out
+
+class M2A_P1(nn.Module):
+    """
+    The lane to actor block fuses updated
+        map information from lane nodes to actor nodes
+    """
+    def __init__(self, config):
+        super(M2A, self).__init__()
+        self.config = config
+        norm = "GN"
+        ng = 1
+
+        n_actor = config["n_actor"]
+        n_map = config["n_map"]
+
+        att = []
+        for i in range(2):
+            att.append(Att(n_actor, n_map))
+        self.att = nn.ModuleList(att)
+
+    def forward(self, actors: Tensor, actor_idcs: List[Tensor], actor_ctrs: List[Tensor], nodes: Tensor, node_idcs: List[Tensor], node_ctrs: List[Tensor]) -> Tensor:
+        for i in range(len(self.att)):
+            actors = self.att[i](
+                actors,
+                actor_idcs,
+                actor_ctrs,
+                nodes,
+                node_idcs,
+                node_ctrs,
+                self.config["map2actor_dist"],
+            )
+        return actors
 
 class Net(nn.Module):
     """
