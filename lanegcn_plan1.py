@@ -85,18 +85,23 @@ config["reg_coef"] = 1.0
 config["mgn"] = 0.2
 config["cls_th"] = 2.0
 config["cls_ignore"] = 0.2
+config["dropratio"] = 0.1
+config["input_embed_size"] =32
+config["rnn_size"] = 128
 ### end of config ###
 
 
 class Net_P1(nn.Module):
     
     def __init__(self, config):
-        super(Net, self).__init__()
+        super(Net_P1, self).__init__()
         self.config = config
-
-        self.actor_net_P1 = ActorNet_P1(config)
+        #ActorNet_P1_1 embeding the input
+        self.actor_net_P1_1 = ActorNet_P1_1(config)
         self.map_net = MapNet(config)
-
+        #Use LSTM on aggregated features
+        self.actor_net_P1_2 = ActorNet_P1_2(config)
+        
         self.a2m = A2M(config)
         self.m2m = M2M(config)
         self.m2a = M2A(config)
@@ -112,7 +117,9 @@ class Net_P1(nn.Module):
         # construct actor feature
         actors, actor_idcs = actor_gather(gpu(data["feats"]))
         actor_ctrs = gpu(data["ctrs"])
-        actors = self.actor_net_P1(actors)
+        actors = self.actor_net_P1_1(actors)
+        actors = self.m2a(actors, actor_idcs, actor_ctrs, nodes, node_idcs, node_ctrs)
+        actors = self.actor_net_p1_2(actors)
 
         # actor-map fusion cycle 
         nodes = self.a2m(nodes, graph, actors, actor_idcs, actor_ctrs)
@@ -130,57 +137,30 @@ class Net_P1(nn.Module):
             )
         return out
     
-class ActorNet_P1(nn.Module):
+class ActorNet_P1_1(nn.Module):
     """
-    Actor feature extractor with Conv1D
+    Actor feature extractor with LSTM
     """
     def __init__(self, config):
-        super(ActorNet, self).__init__()
+        super(ActorNet_P1_1, self).__init__()
+        
         self.config = config
-        norm = "GN"
-        ng = 1
+        self.n_in = 3
+        self.n_out = config["input_embed_size"]
+        self.inputLayer = nn.Linear(self.n_in, self.n_out)
+        self.relu = nn.ReLU()
+        self.dropout = nn.Dropout(config["dropratio"])
 
-        n_in = 3
-        n_out = [32, 64, 128]
-        blocks = [Res1d, Res1d, Res1d]
-        num_blocks = [2, 2, 2]
-
-        groups = []
-        for i in range(len(num_blocks)):
-            group = []
-            if i == 0:
-                group.append(blocks[i](n_in, n_out[i], norm=norm, ng=ng))
-            else:
-                group.append(blocks[i](n_in, n_out[i], stride=2, norm=norm, ng=ng))
-
-            for j in range(1, num_blocks[i]):
-                group.append(blocks[i](n_out[i], n_out[i], norm=norm, ng=ng))
-            groups.append(nn.Sequential(*group))
-            n_in = n_out[i]
-        self.groups = nn.ModuleList(groups)
-
+        observed_length = 20
         n = config["n_actor"]
-        lateral = []
-        for i in range(len(n_out)):
-            lateral.append(Conv1d(n_out[i], n, norm=norm, ng=ng, act=False))
-        self.lateral = nn.ModuleList(lateral)
-
-        self.output = Res1d(n, n, norm=norm, ng=ng)
 
     def forward(self, actors: Tensor) -> Tensor:
-        out = actors
-
-        outputs = []
-        for i in range(len(self.groups)):
-            out = self.groups[i](out)
-            outputs.append(out)
-
-        out = self.lateral[-1](outputs[-1])
-        for i in range(len(outputs) - 2, -1, -1):
-            out = F.interpolate(out, scale_factor=2, mode="linear", align_corners=False)
-            out += self.lateral[i](outputs[i])
-
-        out = self.output(out)[:, :, -1]
+        # actor input: Mx3x20
+        M=actors.shape[0]
+        out = numpy.zeros(M,self.n_out,20)
+        input = actors
+        for framenum in range(self.args.seq_length-1):
+            out[:,:,i] = self.dropout(self.relu(self.inputLayer(input[:,:,i])))
         return out
 
 class M2A_P1(nn.Module):
@@ -189,7 +169,7 @@ class M2A_P1(nn.Module):
         map information from lane nodes to actor nodes
     """
     def __init__(self, config):
-        super(M2A, self).__init__()
+        super(M2A_P1, self).__init__()
         self.config = config
         norm = "GN"
         ng = 1
@@ -214,6 +194,20 @@ class M2A_P1(nn.Module):
                 self.config["map2actor_dist"],
             )
         return actors
+    
+class ActorNet_P1_2(nn.Module):
+    """
+    Actor feature extractor with LSTM
+    """
+    def __init__(self, config):
+        super(ActorNet_P1_2, self).__init__()
+
+        self.cell = LSTMCell(config["input_embed_size"], config["rnn_size"])
+       
+    def forward(self, actors: Tensor) -> Tensor:
+        
+        lstm_state = self.cell.forward(actors, (hidden_states_current,cell_states_current))
+        return out
 
 class Net(nn.Module):
     """
