@@ -87,6 +87,16 @@ config["cls_th"] = 2.0
 config["cls_ignore"] = 0.2
 ### end of config ###
 
+
+class Net_P1(nn.Module):
+class M2A_P1():
+    """
+    1. more feature for each step: 3 -> n
+    2. LSTM replace 1D cnn considering temporal, for feature extraction 
+    """
+
+
+
 class Net(nn.Module):
     """
     Lane Graph Network contains following components:
