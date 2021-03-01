@@ -116,10 +116,7 @@ class ArgoDataset(Dataset):
         mapping = dict()
         for i, ts in enumerate(agt_ts):
             mapping[ts] = i
-        ###
-            if(i==0 or i==1 or i==3):
-            print("map timestamp to time step(0,1,2...)?"+str(i))
-        ###
+            
         # concatenate X and Y into trajs (n,2)
         trajs = np.concatenate((
             df.X.to_numpy().reshape(-1, 1),
