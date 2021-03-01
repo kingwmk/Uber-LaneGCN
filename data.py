@@ -198,7 +198,7 @@ class ArgoDataset(Dataset):
             for i in range(len(step)):
                 if step[i] == 19 - (len(step) - 1) + i:
                     break
-            # reserve 20 step traj before origin(19) step (seem unneeded?)
+            #  continues step traj before origin(19) step.
             step = step[i:]
             traj = traj[i:]
 
