@@ -222,9 +222,11 @@ class ArgoDataset(Dataset):
         has_preds = np.asarray(has_preds, np.bool)
 
         data['feats'] = feats
-        #each objects' 19step's coodinates
+        
+        #each objects' 19th step's coodinates
         data['ctrs'] = ctrs
-        # agent's 19step's coodinates
+        
+        # agent's 19th step's coodinates
         data['orig'] = orig
         data['theta'] = theta
         data['rot'] = rot
