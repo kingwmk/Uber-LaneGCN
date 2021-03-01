@@ -121,9 +121,7 @@ class ArgoDataset(Dataset):
         trajs = np.concatenate((
             df.X.to_numpy().reshape(-1, 1),
             df.Y.to_numpy().reshape(-1, 1)), 1)
-        ###
-        print("trajs:((n,2))?"+str(trajs.shape))
-        ###
+
         # steps: timestep for each data.
         steps = [mapping[x] for x in df['TIMESTAMP'].values]
         steps = np.asarray(steps, np.int64)
