@@ -113,6 +113,7 @@ class Net_P1(nn.Module):
         nodes, node_idcs, node_ctrs = self.map_net(graph)
         
         # construct actor feature
+        print(len(gpu(data["feats"])+str(data["feats"][0].shape))
         actors, actor_idcs = actor_gather(gpu(data["feats"]))
         actor_ctrs = gpu(data["ctrs"])
         actors = self.actor_net_P1(actors, actor_idcs, actor_ctrs, nodes, node_idcs, node_ctrs)
@@ -165,7 +166,12 @@ class ActorNet_P1(nn.Module):
         print("nodes"+str(nodes.shape))
         print("nodes_idcs"+str(len(node_idcs))+str(node_idcs[0].shape))
         print("node_ctrs"+str(len(node_ctrs))+str(node_ctrs.size[0].shape))
-#        actors = self.m2a(actors, actor_idcs, actor_ctrs, nodes, node_idcs, node_ctrs)
+        
+        # -> Mx 20*n_out
+        actors = actors.view(-1, self.n_out)
+        actor_ctrs = 
+        #
+        actors = self.m2a(actors, actor_idcs, actor_ctrs, nodes, node_idcs, node_ctrs)
    
 #        lstm_state = self.cell.forward(actors, (hidden_states_current,cell_states_current))
         return
