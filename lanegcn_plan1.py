@@ -160,11 +160,11 @@ class ActorNet_P1(nn.Module):
         # -> Mx20xn_out
         actors = self.relu(self.inputLayer(actors))
         print("actors"+str(actors.shape))
-        print("actor_idcs"+str(actor_idcs.shape))
-        print("actor_ctrs"+str(actor_ctrs.shape))
+        print("actor_idcs"+str(actor_idcs.size()))
+        print("actor_ctrs"+str(actor_ctrs.size()))
         print("nodes"+str(nodes.shape))
-        print("nodes_idcs"+str(node_idcs.shape))
-        print("node_ctrs"+str(node_ctrs.shape))
+        print("nodes_idcs"+str(node_idcs.size()))
+        print("node_ctrs"+str(node_ctrs.size()))
 #        actors = self.m2a(actors, actor_idcs, actor_ctrs, nodes, node_idcs, node_ctrs)
    
 #        lstm_state = self.cell.forward(actors, (hidden_states_current,cell_states_current))
@@ -181,7 +181,7 @@ class M2A_P1(nn.Module):
         norm = "GN"
         ng = 1
 
-        n_actor = config["n_actor"]
+        n_actor = config["input_embed_size"]
         n_map = config["n_map"]
 
         att = []
