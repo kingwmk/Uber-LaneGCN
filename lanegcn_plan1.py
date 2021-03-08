@@ -118,20 +118,20 @@ class Net_P1(nn.Module):
         actors = self.actor_net_P1(actors, actor_idcs, actor_ctrs, nodes, node_idcs, node_ctrs, gpu(data["feats"]))
 
         # actor-map fusion cycle 
-#        nodes = self.a2m(nodes, graph, actors, actor_idcs, actor_ctrs)
-#        nodes = self.m2m(nodes, graph)
-#        actors = self.m2a(actors, actor_idcs, actor_ctrs, nodes, node_idcs, node_ctrs)
-#        actors = self.a2a(actors, actor_idcs, actor_ctrs)
+        nodes = self.a2m(nodes, graph, actors, actor_idcs, actor_ctrs)
+        nodes = self.m2m(nodes, graph)
+        actors = self.m2a(actors, actor_idcs, actor_ctrs, nodes, node_idcs, node_ctrs)
+        actors = self.a2a(actors, actor_idcs, actor_ctrs)
 
         # prediction
-#        out = self.pred_net(actors, actor_idcs, actor_ctrs)
-#        rot, orig = gpu(data["rot"]), gpu(data["orig"])
+        out = self.pred_net(actors, actor_idcs, actor_ctrs)
+        rot, orig = gpu(data["rot"]), gpu(data["orig"])
 #        # transform prediction to world coordinates
-#        for i in range(len(out["reg"])):
-#            out["reg"][i] = torch.matmul(out["reg"][i], rot[i]) + orig[i].view(
-#                1, 1, 1, -1
-#            )
-#        return out
+        for i in range(len(out["reg"])):
+            out["reg"][i] = torch.matmul(out["reg"][i], rot[i]) + orig[i].view(
+                1, 1, 1, -1
+            )
+        return out
     
 class ActorNet_P1(nn.Module):
     """
@@ -162,7 +162,7 @@ class ActorNet_P1(nn.Module):
 
         # -> M*20 x n_out
         actors_feature = actors_feature.view(-1, self.n_out)
-        print(actors_feature.shape)
+#        print(actors_feature.shape)
         
         for i in range(len(actor_data)):
             actor_data[i] = actor_data[i][:,:,:2].view(-1,2)
@@ -174,7 +174,7 @@ class ActorNet_P1(nn.Module):
         c0 = torch.zeros(1, M, config["rnn_size"]).cuda()
         output, (hn, cn) = self.lstm(actors_feature, (h0, c0))
         out = hn.view(M, config["rnn_size"])
-        print(out.shape)
+#        print(out.shape)
         return out
 
 class M2A_P1(nn.Module):
