@@ -96,11 +96,9 @@ class Net_P1(nn.Module):
     def __init__(self, config):
         super(Net_P1, self).__init__()
         self.config = config
-        #ActorNet_P1_1 embeding the input
-        self.actor_net_P1_1 = ActorNet_P1_1(config)
+        #ActorNet_P1_1 embeding the input and Use LSTM on aggregated features
+        self.actor_net_P1 = ActorNet_P1(config)
         self.map_net = MapNet(config)
-        #Use LSTM on aggregated features
-        self.actor_net_P1_2 = ActorNet_P1_2(config)
         
         self.a2m = A2M(config)
         self.m2m = M2M(config)
@@ -111,56 +109,57 @@ class Net_P1(nn.Module):
 
     def forward(self, data: Dict) -> Dict[str, List[Tensor]]:
         # construct map features
-        graph = graph_gather(to_long(gpu(data["graph"])))
-        nodes, node_idcs, node_ctrs = self.map_net(graph)
+#        graph = graph_gather(to_long(gpu(data["graph"])))
+#        nodes, node_idcs, node_ctrs = self.map_net(graph)
         
         # construct actor feature
         actors, actor_idcs = actor_gather(gpu(data["feats"]))
         actor_ctrs = gpu(data["ctrs"])
-        actors = self.actor_net_P1_1(actors)
-        actors = self.m2a(actors, actor_idcs, actor_ctrs, nodes, node_idcs, node_ctrs)
-        actors = self.actor_net_p1_2(actors)
+        actors = self.actor_net_P1(actors)
+#        actors = self.m2a(actors, actor_idcs, actor_ctrs, nodes, node_idcs, node_ctrs)
 
         # actor-map fusion cycle 
-        nodes = self.a2m(nodes, graph, actors, actor_idcs, actor_ctrs)
-        nodes = self.m2m(nodes, graph)
-        actors = self.m2a(actors, actor_idcs, actor_ctrs, nodes, node_idcs, node_ctrs)
-        actors = self.a2a(actors, actor_idcs, actor_ctrs)
+#        nodes = self.a2m(nodes, graph, actors, actor_idcs, actor_ctrs)
+#        nodes = self.m2m(nodes, graph)
+#        actors = self.m2a(actors, actor_idcs, actor_ctrs, nodes, node_idcs, node_ctrs)
+#        actors = self.a2a(actors, actor_idcs, actor_ctrs)
 
         # prediction
-        out = self.pred_net(actors, actor_idcs, actor_ctrs)
-        rot, orig = gpu(data["rot"]), gpu(data["orig"])
-        # transform prediction to world coordinates
-        for i in range(len(out["reg"])):
-            out["reg"][i] = torch.matmul(out["reg"][i], rot[i]) + orig[i].view(
-                1, 1, 1, -1
-            )
-        return out
+#        out = self.pred_net(actors, actor_idcs, actor_ctrs)
+#        rot, orig = gpu(data["rot"]), gpu(data["orig"])
+#        # transform prediction to world coordinates
+#        for i in range(len(out["reg"])):
+#            out["reg"][i] = torch.matmul(out["reg"][i], rot[i]) + orig[i].view(
+#                1, 1, 1, -1
+#            )
+#        return out
     
-class ActorNet_P1_1(nn.Module):
+class ActorNet_P1(nn.Module):
     """
     Actor feature extractor with LSTM
     """
     def __init__(self, config):
-        super(ActorNet_P1_1, self).__init__()
+        super(ActorNet_P1, self).__init__()
         
         self.config = config
         self.n_in = 3
         self.n_out = config["input_embed_size"]
         self.inputLayer = nn.Linear(self.n_in, self.n_out)
         self.relu = nn.ReLU()
-
+        self.cell = LSTMCell(config["input_embed_size"], config["rnn_size"])
         observed_length = 20
         n = config["n_actor"]
 
     def forward(self, actors: Tensor) -> Tensor:
         # actor input: Mx3x20
-        M=actors.shape[0]
-        out = numpy.zeros(M,self.n_out,20)
-        input = actors
-        for framenum in range(self.args.seq_length-1):
-            out[:,:,i] = self.relu(self.inputLayer(input[:,:,i]))
-        return out
+        print(actors.shape)
+        # -> Mx20x3
+        actors = torch.transpose(actors, 1, 2)
+        # -> Mx20xn_out
+        actors = self.inputLayer(actors)
+        print(actors.shape)            
+#        lstm_state = self.cell.forward(actors, (hidden_states_current,cell_states_current))
+        return
 
 class M2A_P1(nn.Module):
     """
@@ -194,19 +193,6 @@ class M2A_P1(nn.Module):
             )
         return actors
     
-class ActorNet_P1_2(nn.Module):
-    """
-    Actor feature extractor with LSTM
-    """
-    def __init__(self, config):
-        super(ActorNet_P1_2, self).__init__()
-
-        self.cell = LSTMCell(config["input_embed_size"], config["rnn_size"])
-       
-    def forward(self, actors: Tensor) -> Tensor:
-        
-        lstm_state = self.cell.forward(actors, (hidden_states_current,cell_states_current))
-        return out
 
 class Net(nn.Module):
     """
@@ -1017,7 +1003,7 @@ def pred_metrics(preds, gt_preds, has_preds):
 
 
 def get_model():
-    net = Net(config)
+    net = Net_P1(config)
     net = net.cuda()
 
     loss = Loss(config).cuda()
