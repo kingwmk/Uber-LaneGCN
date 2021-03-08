@@ -113,10 +113,9 @@ class Net_P1(nn.Module):
         nodes, node_idcs, node_ctrs = self.map_net(graph)
         
         # construct actor feature
-        print(str(len(data["feats"]))+str(data["feats"][0].shape))
         actors, actor_idcs = actor_gather(gpu(data["feats"]))
         actor_ctrs = gpu(data["ctrs"])
-        actors = self.actor_net_P1(actors, actor_idcs, actor_ctrs, nodes, node_idcs, node_ctrs)
+        actors = self.actor_net_P1(actors, actor_idcs, actor_ctrs, nodes, node_idcs, node_ctrs, gpu(data["feats"])
 #        actors = self.m2a(actors, actor_idcs, actor_ctrs, nodes, node_idcs, node_ctrs)
 
         # actor-map fusion cycle 
@@ -153,24 +152,21 @@ class ActorNet_P1(nn.Module):
         observed_length = 20
         n = config["n_actor"]
 
-    def forward(self, actors: Tensor, actor_idcs: List[Tensor], actor_ctrs: List[Tensor], nodes: Tensor, node_idcs: List[Tensor], node_ctrs: List[Tensor]) -> Tensor:
+    def forward(self, actors: Tensor, actor_idcs: List[Tensor], actor_ctrs: List[Tensor], nodes: Tensor, node_idcs: List[Tensor], node_ctrs: List[Tensor], actor_data: List[Tensor]) -> Tensor:
         # actor input: Mx3x20
 
         # -> Mx20x3
         actors = torch.transpose(actors, 1, 2)
         # -> Mx20xn_out
         actors_feature = self.relu(self.inputLayer(actors))
-        print("actors"+str(actors.shape))
-        print("actor_idcs"+str(len(actor_idcs))+str(actor_idcs[0].shape))
-        print("actor_ctrs"+str(len(actor_ctrs))+str(actor_ctrs[0].shape))
-        print("nodes"+str(nodes.shape))
-        print("nodes_idcs"+str(len(node_idcs))+str(node_idcs[0].shape))
-        print("node_ctrs"+str(len(node_ctrs))+str(node_ctrs.size[0].shape))
-        
+
         # -> Mx 20*n_out
         actors_feature = actors_feature.view(-1, self.n_out)
-        actor_ctrs = gpu(data["ctrs"])
-        actor_pos = actor
+        print("actors_feature:"+actors_feature.shape)
+        print("actor_data:"+str(len(actor_data))+str(actor_data[0].shape))
+        for actor_d in actor_data:
+            actor_d = actor_d[:,:,:2].view(-1,2)
+        print("actor_data:"+str(len(actor_data))+str(actor_data[0].shape))
         #
         actors = self.m2a(actors, actor_idcs, actor_ctrs, nodes, node_idcs, node_ctrs)
    
