@@ -153,16 +153,17 @@ class ActorNet_P1(nn.Module):
 
     def forward(self, actors: Tensor, actor_idcs: List[Tensor], actor_ctrs: List[Tensor], nodes: Tensor, node_idcs: List[Tensor], node_ctrs: List[Tensor], actor_data: List[Tensor]) -> Tensor:
         # actor input: Mx3x20
-        num_actors = actors.shape[0]
+        M = actors.shape[0]
         # -> Mx20x3
         actors = torch.transpose(actors, 1, 2)
-
+        
         # -> Mx20xn_out
         actors_feature = self.relu(self.inputLayer(actors))
 
         # -> M*20 x n_out
         actors_feature = actors_feature.view(-1, self.n_out)
-
+        print(actors_feature.shape)
+        
         for i in range(len(actor_data)):
             actor_data[i] = actor_data[i][:,:,:2].view(-1,2)
         
