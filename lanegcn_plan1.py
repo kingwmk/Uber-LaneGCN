@@ -157,6 +157,8 @@ class ActorNet_P1(nn.Module):
 
         # -> Mx20x3
         actors = torch.transpose(actors, 1, 2)
+        print(actors.shape)
+
         # -> Mx20xn_out
         actors_feature = self.relu(self.inputLayer(actors))
 
@@ -167,7 +169,7 @@ class ActorNet_P1(nn.Module):
         for i in range(len(actor_data)):
             actor_data[i] = actor_data[i][:,:,:2].view(-1,2)
         print("actor_data2:"+str(len(actor_data))+str(actor_data[0].shape))
-        #
+        
         actors_feature = self.m2a_P1(actors_feature, actor_idcs, actor_data, nodes, node_idcs, node_ctrs)
         print("actors_feature2:"+str(actors_feature.shape))
 #        lstm_state = self.cell.forward(actors, (hidden_states_current,cell_states_current))
