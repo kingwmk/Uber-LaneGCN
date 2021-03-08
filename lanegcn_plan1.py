@@ -85,7 +85,7 @@ config["reg_coef"] = 1.0
 config["mgn"] = 0.2
 config["cls_th"] = 2.0
 config["cls_ignore"] = 0.2
-config["dropratio"] = 0.1
+
 config["input_embed_size"] =32
 config["rnn_size"] = 128
 ### end of config ###
@@ -149,7 +149,6 @@ class ActorNet_P1_1(nn.Module):
         self.n_out = config["input_embed_size"]
         self.inputLayer = nn.Linear(self.n_in, self.n_out)
         self.relu = nn.ReLU()
-        self.dropout = nn.Dropout(config["dropratio"])
 
         observed_length = 20
         n = config["n_actor"]
@@ -160,7 +159,7 @@ class ActorNet_P1_1(nn.Module):
         out = numpy.zeros(M,self.n_out,20)
         input = actors
         for framenum in range(self.args.seq_length-1):
-            out[:,:,i] = self.dropout(self.relu(self.inputLayer(input[:,:,i])))
+            out[:,:,i] = self.relu(self.inputLayer(input[:,:,i]))
         return out
 
 class M2A_P1(nn.Module):
