@@ -116,7 +116,6 @@ class Net_P1(nn.Module):
         actors, actor_idcs = actor_gather(gpu(data["feats"]))
         actor_ctrs = gpu(data["ctrs"])
         actors = self.actor_net_P1(actors, actor_idcs, actor_ctrs, nodes, node_idcs, node_ctrs, gpu(data["feats"]))
-#        actors = self.m2a(actors, actor_idcs, actor_ctrs, nodes, node_idcs, node_ctrs)
 
         # actor-map fusion cycle 
 #        nodes = self.a2m(nodes, graph, actors, actor_idcs, actor_ctrs)
@@ -148,13 +147,13 @@ class ActorNet_P1(nn.Module):
         self.relu = nn.ReLU()
         self.m2a_P1 = M2A_P1(config)
         
-#        self.cell = LSTMCell(config["input_embed_size"], config["rnn_size"])
+        self.lstm = nn.LSTM(config["input_embed_size"], config["rnn_size"], batch_first=True)
         observed_length = 20
         n = config["n_actor"]
 
     def forward(self, actors: Tensor, actor_idcs: List[Tensor], actor_ctrs: List[Tensor], nodes: Tensor, node_idcs: List[Tensor], node_ctrs: List[Tensor], actor_data: List[Tensor]) -> Tensor:
         # actor input: Mx3x20
-
+        num_actors = actors.shape[0]
         # -> Mx20x3
         actors = torch.transpose(actors, 1, 2)
 
@@ -163,15 +162,19 @@ class ActorNet_P1(nn.Module):
 
         # -> M*20 x n_out
         actors_feature = actors_feature.view(-1, self.n_out)
-        print(actors_feature.shape)
+
         for i in range(len(actor_data)):
             actor_data[i] = actor_data[i][:,:,:2].view(-1,2)
-        print("actor_data2:"+str(len(actor_data))+str(actor_data[0].shape))
         
         actors_feature = self.m2a_P1(actors_feature, actor_idcs, actor_data, nodes, node_idcs, node_ctrs)
-        print("actors_feature2:"+str(actors_feature.shape))
-#        lstm_state = self.cell.forward(actors, (hidden_states_current,cell_states_current))
-        return
+        actors_feature = actors_feature.view(-1, 20, self.n_out)
+        
+        h_n = torch.zeros(1, M, config["rnn_size"])
+        c_n = torch.zeros(1, M, config["rnn_size"])
+        output, (hn, cn) = self.lstm(actors_feature, (h0, c0))
+        out = hn.view(M, config["rnn_size"])
+        print(out.shape)
+        return out
 
 class M2A_P1(nn.Module):
     """
