@@ -115,7 +115,7 @@ class Net_P1(nn.Module):
         # construct actor feature
         actors, actor_idcs = actor_gather(gpu(data["feats"]))
         actor_ctrs = gpu(data["ctrs"])
-        actors = self.actor_net_P1(actors, actor_idcs, actor_ctrs, nodes, node_idcs, node_ctrs, gpu(data["feats"])
+        actors = self.actor_net_P1(actors, actor_idcs, actor_ctrs, nodes, node_idcs, node_ctrs, gpu(data["feats"]))
 #        actors = self.m2a(actors, actor_idcs, actor_ctrs, nodes, node_idcs, node_ctrs)
 
         # actor-map fusion cycle 
