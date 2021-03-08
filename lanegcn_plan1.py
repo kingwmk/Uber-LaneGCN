@@ -146,7 +146,7 @@ class ActorNet_P1(nn.Module):
         self.n_out = config["input_embed_size"]
         self.inputLayer = nn.Linear(self.n_in, self.n_out)
         self.relu = nn.ReLU()
-        self.cell = LSTMCell(config["input_embed_size"], config["rnn_size"])
+#        self.cell = LSTMCell(config["input_embed_size"], config["rnn_size"])
         observed_length = 20
         n = config["n_actor"]
 
