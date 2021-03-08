@@ -109,13 +109,13 @@ class Net_P1(nn.Module):
 
     def forward(self, data: Dict) -> Dict[str, List[Tensor]]:
         # construct map features
-#        graph = graph_gather(to_long(gpu(data["graph"])))
-#        nodes, node_idcs, node_ctrs = self.map_net(graph)
+        graph = graph_gather(to_long(gpu(data["graph"])))
+        nodes, node_idcs, node_ctrs = self.map_net(graph)
         
         # construct actor feature
         actors, actor_idcs = actor_gather(gpu(data["feats"]))
         actor_ctrs = gpu(data["ctrs"])
-        actors = self.actor_net_P1(actors)
+        actors = self.actor_net_P1(actors, actor_idcs, actor_ctrs, nodes, node_idcs, node_ctrs)
 #        actors = self.m2a(actors, actor_idcs, actor_ctrs, nodes, node_idcs, node_ctrs)
 
         # actor-map fusion cycle 
@@ -146,18 +146,27 @@ class ActorNet_P1(nn.Module):
         self.n_out = config["input_embed_size"]
         self.inputLayer = nn.Linear(self.n_in, self.n_out)
         self.relu = nn.ReLU()
+        self.m2a_P1 = M2A_P1(config)
+        
 #        self.cell = LSTMCell(config["input_embed_size"], config["rnn_size"])
         observed_length = 20
         n = config["n_actor"]
 
-    def forward(self, actors: Tensor) -> Tensor:
+    def forward(self, actors: Tensor, actor_idcs: List[Tensor], actor_ctrs: List[Tensor], nodes: Tensor, node_idcs: List[Tensor], node_ctrs: List[Tensor]) -> Tensor:
         # actor input: Mx3x20
-        print(actors.shape)
+
         # -> Mx20x3
         actors = torch.transpose(actors, 1, 2)
         # -> Mx20xn_out
-        actors = self.inputLayer(actors)
-        print(actors.shape)            
+        actors = self.relu(self.inputLayer(actors))
+        print("actors"+actors.shape)
+        print("actor_idcs"+actor_idcs.shape)
+        print("actor_ctrs"+actor_ctrs.shape)
+        print("nodes"+nodes.shape)
+        print("nodes_idcs"+node_idcs.shape)
+        print("node_ctrs"+node_ctrs.shape)
+#        actors = self.m2a(actors, actor_idcs, actor_ctrs, nodes, node_idcs, node_ctrs)
+   
 #        lstm_state = self.cell.forward(actors, (hidden_states_current,cell_states_current))
         return
 
