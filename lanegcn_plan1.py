@@ -170,8 +170,8 @@ class ActorNet_P1(nn.Module):
         actors_feature = self.m2a_P1(actors_feature, actor_idcs, actor_data, nodes, node_idcs, node_ctrs)
         actors_feature = actors_feature.view(-1, 20, self.n_out)
         
-        h_0 = torch.zeros(1, M, config["rnn_size"])
-        c_0 = torch.zeros(1, M, config["rnn_size"])
+        h0 = torch.zeros(1, M, config["rnn_size"])
+        c0 = torch.zeros(1, M, config["rnn_size"])
         output, (hn, cn) = self.lstm(actors_feature, (h0, c0))
         out = hn.view(M, config["rnn_size"])
         print(out.shape)
