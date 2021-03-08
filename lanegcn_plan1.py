@@ -162,13 +162,13 @@ class ActorNet_P1(nn.Module):
 
         # -> Mx 20*n_out
         actors_feature = actors_feature.view(-1, self.n_out)
-        print("actors_feature:"+actors_feature.shape)
+        print("actors_feature:"+str(actors_feature.shape))
         print("actor_data:"+str(len(actor_data))+str(actor_data[0].shape))
         for actor_d in actor_data:
             actor_d = actor_d[:,:,:2].view(-1,2)
         print("actor_data:"+str(len(actor_data))+str(actor_data[0].shape))
         #
-        actors = self.m2a(actors, actor_idcs, actor_ctrs, nodes, node_idcs, node_ctrs)
+        actors = self.m2a(actors_feature, actor_idcs, actor_data, nodes, node_idcs, node_ctrs)
    
 #        lstm_state = self.cell.forward(actors, (hidden_states_current,cell_states_current))
         return
