@@ -113,7 +113,7 @@ class Net_P1(nn.Module):
         nodes, node_idcs, node_ctrs = self.map_net(graph)
         
         # construct actor feature
-        print(len(gpu(data["feats"])+str(data["feats"][0].shape))
+        print(len(data["feats"])+str(data["feats"][0].shape))
         actors, actor_idcs = actor_gather(gpu(data["feats"]))
         actor_ctrs = gpu(data["ctrs"])
         actors = self.actor_net_P1(actors, actor_idcs, actor_ctrs, nodes, node_idcs, node_ctrs)
