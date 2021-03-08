@@ -169,7 +169,7 @@ class ActorNet_P1(nn.Module):
         
         # -> Mx 20*n_out
         actors = actors.view(-1, self.n_out)
-        actor_ctrs = 
+        actor_ctrs = gpu(data["ctrs"])
         #
         actors = self.m2a(actors, actor_idcs, actor_ctrs, nodes, node_idcs, node_ctrs)
    
