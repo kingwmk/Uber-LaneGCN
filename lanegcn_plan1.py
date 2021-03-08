@@ -113,7 +113,7 @@ class Net_P1(nn.Module):
         nodes, node_idcs, node_ctrs = self.map_net(graph)
         
         # construct actor feature
-        print(len(data["feats"])+str(data["feats"][0].shape))
+        print(str(len(data["feats"]))+str(data["feats"][0].shape))
         actors, actor_idcs = actor_gather(gpu(data["feats"]))
         actor_ctrs = gpu(data["ctrs"])
         actors = self.actor_net_P1(actors, actor_idcs, actor_ctrs, nodes, node_idcs, node_ctrs)
@@ -159,7 +159,7 @@ class ActorNet_P1(nn.Module):
         # -> Mx20x3
         actors = torch.transpose(actors, 1, 2)
         # -> Mx20xn_out
-        actors = self.relu(self.inputLayer(actors))
+        actors_feature = self.relu(self.inputLayer(actors))
         print("actors"+str(actors.shape))
         print("actor_idcs"+str(len(actor_idcs))+str(actor_idcs[0].shape))
         print("actor_ctrs"+str(len(actor_ctrs))+str(actor_ctrs[0].shape))
@@ -168,8 +168,9 @@ class ActorNet_P1(nn.Module):
         print("node_ctrs"+str(len(node_ctrs))+str(node_ctrs.size[0].shape))
         
         # -> Mx 20*n_out
-        actors = actors.view(-1, self.n_out)
+        actors_feature = actors_feature.view(-1, self.n_out)
         actor_ctrs = gpu(data["ctrs"])
+        actor_pos = actor
         #
         actors = self.m2a(actors, actor_idcs, actor_ctrs, nodes, node_idcs, node_ctrs)
    
