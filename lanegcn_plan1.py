@@ -164,8 +164,8 @@ class ActorNet_P1(nn.Module):
         actors_feature = actors_feature.view(-1, self.n_out)
         print("actors_feature:"+str(actors_feature.shape))
         print("actor_data:"+str(len(actor_data))+str(actor_data[0].shape))
-        for actor_d in actor_data:
-            actor_d = actor_d[:,:,:2].view(-1,2)
+        for i in range(len(actor_data)):
+            actor_data[i] = actor_data[i][:,:,:2].view(-1,2)
         print("actor_data:"+str(len(actor_data))+str(actor_data[0].shape))
         #
         actors = self.m2a(actors_feature, actor_idcs, actor_data, nodes, node_idcs, node_ctrs)
