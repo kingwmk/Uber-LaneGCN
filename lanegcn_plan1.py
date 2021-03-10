@@ -118,9 +118,9 @@ class Net_P1(nn.Module):
         actors = self.actor_net_P1(actors, actor_idcs, actor_ctrs, nodes, node_idcs, node_ctrs, gpu(data["feats"]))
 
         # actor-map fusion cycle 
-        nodes = self.a2m(nodes, graph, actors, actor_idcs, actor_ctrs)
-        nodes = self.m2m(nodes, graph)
-        actors = self.m2a(actors, actor_idcs, actor_ctrs, nodes, node_idcs, node_ctrs)
+#        nodes = self.a2m(nodes, graph, actors, actor_idcs, actor_ctrs)
+#        nodes = self.m2m(nodes, graph)
+#        actors = self.m2a(actors, actor_idcs, actor_ctrs, nodes, node_idcs, node_ctrs)
         actors = self.a2a(actors, actor_idcs, actor_ctrs)
 
         # prediction
